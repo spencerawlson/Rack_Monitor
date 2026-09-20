@@ -1,0 +1,26 @@
+# Secrets - never commit
+.env
+*.pem
+*.key
+certs/
+ca/
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Runtime artifacts
+logs/
+*.log
+.plh_monitor.pid
+
+# Editors / OS
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini

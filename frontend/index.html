@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1424, initial-scale=1">
+<title>PLH Rack Monitor</title>
+<link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+<!-- The stage is exactly 1424x280. Any other window size scales the whole
+     stage rather than reflowing it, so the panel layout never changes shape. -->
+<div id="stage" class="stage">
+
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark"></span>
+      <span class="brand-name">PLH RACK MONITOR</span>
+    </div>
+    <div class="topbar-right">
+      <!-- View selector: all three machines, or one on its own. -->
+      <div class="views" id="views" role="group" aria-label="View">
+        <button class="view-btn" type="button" data-view="all" title="All machines (0)">ALL</button>
+        <button class="view-btn" type="button" data-view="windows" title="Windows host only (1)">WIN</button>
+        <button class="view-btn" type="button" data-view="node1" title="Proxmox node 1 only (2)">PVE01</button>
+        <button class="view-btn" type="button" data-view="node2" title="Proxmox node 2 only (3)">PVE02</button>
+      </div>
+      <span id="link-state" class="link-state" title="Live update stream">CONNECTING</span>
+      <span id="overall" class="overall">STARTING</span>
+      <button id="detail-btn" class="icon-btn" type="button" title="Detail view (D)">DETAIL</button>
+      <button id="fs-btn" class="icon-btn" type="button" title="Fullscreen (F11)">&#9974;</button>
+    </div>
+  </header>
+
+  <main class="panels" id="panels">
+
+    <section class="panel" id="panel-windows" data-section="windows">
+      <div class="panel-head">
+        <h2 id="title-windows">WINDOWS HOST</h2>
+        <span class="pill" id="pill-windows">--</span>
+      </div>
+      <div class="donut-row" id="donuts-windows"></div>
+      <div class="stats" id="stats-windows"></div>
+    </section>
+
+    <section class="panel" id="panel-node1" data-section="node1">
+      <div class="panel-head">
+        <h2 id="title-node1">PROXMOX 01</h2>
+        <span class="pill" id="pill-node1">--</span>
+      </div>
+      <div class="donut-row" id="donuts-node1"></div>
+      <div class="stats" id="stats-node1"></div>
+    </section>
+
+    <section class="panel" id="panel-node2" data-section="node2">
+      <div class="panel-head">
+        <h2 id="title-node2">PROXMOX 02</h2>
+        <span class="pill" id="pill-node2">--</span>
+      </div>
+      <div class="donut-row" id="donuts-node2"></div>
+      <div class="stats" id="stats-node2"></div>
+    </section>
+
+  </main>
+
+  <!-- Shown when the backend cannot be reached, so an empty dashboard is
+       never mistaken for a healthy one. -->
+  <div class="banner" id="banner" hidden>
+    <span class="banner-title" id="banner-title">BACKEND UNREACHABLE</span>
+    <span class="banner-text" id="banner-text"></span>
+  </div>
+
+  <!-- Expanded view: the full Windows detail, including per-core utilisation. -->
+  <div class="detail" id="detail" hidden>
+    <div class="detail-head">
+      <span id="detail-title">WINDOWS HOST &mdash; DETAIL</span>
+      <span class="detail-hint">D or ESC to close</span>
+    </div>
+    <div class="detail-grid">
+      <div class="detail-col">
+        <h3>CPU</h3>
+        <div id="cores" class="cores"></div>
+        <dl id="detail-cpu" class="kv"></dl>
+      </div>
+      <div class="detail-col">
+        <h3>MEMORY</h3>
+        <dl id="detail-mem" class="kv"></dl>
+        <h3>PROCESSES</h3>
+        <dl id="detail-proc" class="kv"></dl>
+      </div>
+      <div class="detail-col">
+        <h3>STORAGE</h3>
+        <dl id="detail-disk" class="kv"></dl>
+      </div>
+      <div class="detail-col">
+        <h3>NETWORK</h3>
+        <dl id="detail-net" class="kv"></dl>
+      </div>
+    </div>
+  </div>
+
+</div>
+<script src="/static/app.js"></script>
+</body>
+</html>

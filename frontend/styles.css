@@ -1,0 +1,436 @@
+/* PLH Rack Monitor - layout for a 1424 x 280 ultrawide panel.
+   Every size below is a fixed pixel value chosen for that geometry. The stage
+   is scaled as a whole for other window sizes (see app.js), so nothing
+   reflows, wraps or clips at the target resolution. */
+
+:root {
+  --bg: #070b11;
+  --panel: #0e151f;
+  --panel-edge: #1c2634;
+  --ink: #e6edf5;
+  --ink-dim: #93a4b8;
+  --ink-faint: #5b6b80;
+
+  --normal: #22d3ee;
+  --normal-2: #34d399;
+  --accent: #3b82f6;
+  --warning: #fbbf24;
+  --critical: #f87171;
+  --unavailable: #47566b;
+
+  --track: #16202d;
+
+  --stage-w: 1424px;
+  --stage-h: 280px;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  width: 100%;
+  height: 100%;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+  /* No scrollbar may appear at the target resolution. */
+  overflow: hidden;
+}
+
+body { display: flex; align-items: center; justify-content: center; }
+
+.stage {
+  position: relative;
+  width: var(--stage-w);
+  height: var(--stage-h);
+  flex: 0 0 auto;
+  padding: 6px 8px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  transform-origin: center center;
+  background: var(--bg);
+}
+
+/* ------------------------------------------------------------------ topbar */
+
+.topbar {
+  height: 30px;
+  min-height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 4px;
+  border-bottom: 1px solid var(--panel-edge);
+}
+
+.brand { display: flex; align-items: center; gap: 8px; }
+
+.brand-mark {
+  width: 9px; height: 9px; border-radius: 2px;
+  background: var(--normal);
+  box-shadow: 0 0 8px rgba(34, 211, 238, 0.7);
+}
+
+.brand-name {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 1.6px;
+}
+
+.topbar-right { display: flex; align-items: center; gap: 10px; }
+
+.link-state {
+  font-size: 10px;
+  letter-spacing: 0.8px;
+  color: var(--ink-faint);
+  border: 1px solid var(--panel-edge);
+  border-radius: 3px;
+  padding: 2px 6px;
+}
+.link-state.live { color: var(--normal-2); border-color: rgba(52, 211, 153, 0.4); }
+.link-state.polling { color: var(--warning); border-color: rgba(251, 191, 36, 0.4); }
+.link-state.down { color: var(--critical); border-color: rgba(248, 113, 113, 0.5); }
+
+.overall {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1.2px;
+  color: var(--normal-2);
+}
+.overall.warning { color: var(--warning); }
+.overall.critical { color: var(--critical); }
+
+.icon-btn {
+  font-family: inherit;
+  font-size: 10px;
+  letter-spacing: 0.8px;
+  color: var(--ink-dim);
+  background: transparent;
+  border: 1px solid var(--panel-edge);
+  border-radius: 3px;
+  padding: 3px 7px;
+  cursor: pointer;
+}
+.icon-btn:hover { color: var(--ink); border-color: var(--normal); }
+
+/* ------------------------------------------------------------------ panels */
+
+.views { display: flex; gap: 3px; }
+
+.view-btn {
+  font-family: inherit;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.7px;
+  color: var(--ink-faint);
+  background: transparent;
+  border: 1px solid var(--panel-edge);
+  border-radius: 3px;
+  padding: 3px 6px;
+  cursor: pointer;
+}
+.view-btn:hover { color: var(--ink); }
+.view-btn.active {
+  color: var(--bg);
+  background: var(--normal);
+  border-color: var(--normal);
+}
+
+.panels {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+/* Single-machine view: the chosen panel takes the whole stage and the extra
+   room goes to larger charts and a wider stat grid, rather than to padding. */
+.panels.solo { grid-template-columns: 1fr; }
+.panels.solo .panel { padding: 10px 24px 12px; }
+.panels.solo .panel-head { height: 22px; }
+.panels.solo .panel-head h2 { font-size: 16px; letter-spacing: 2px; }
+.panels.solo .pill { font-size: 11px; padding: 3px 9px; }
+.panels.solo .donut-row { height: 132px; min-height: 132px; justify-content: center; gap: 90px; }
+/* Chart text is sized in viewBox units, so it grows with the ring by itself. */
+.panels.solo .donut { width: 126px; height: 126px; }
+.panels.solo .stats {
+  grid-template-columns: repeat(4, 1fr);
+  grid-auto-rows: 17px;
+  font-size: 12px;
+  line-height: 17px;
+  column-gap: 26px;
+}
+.panels.solo .note { font-size: 11px; }
+
+.panel {
+  min-width: 0;
+  background: var(--panel);
+  border: 1px solid var(--panel-edge);
+  border-radius: 6px;
+  padding: 7px 10px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.panel.offline { border-color: rgba(248, 113, 113, 0.35); }
+.panel.unconfigured { border-style: dashed; border-color: #263248; }
+
+.panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 17px;
+}
+
+.panel-head h2 {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1.3px;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pill {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.7px;
+  padding: 2px 6px;
+  border-radius: 9px;
+  border: 1px solid var(--panel-edge);
+  color: var(--ink-faint);
+  white-space: nowrap;
+}
+.pill.online { color: var(--normal-2); border-color: rgba(52, 211, 153, 0.45); }
+.pill.warning { color: var(--warning); border-color: rgba(251, 191, 36, 0.45); }
+.pill.offline { color: var(--critical); border-color: rgba(248, 113, 113, 0.5); }
+.pill.unconfigured { color: var(--ink-faint); }
+.pill.stale { color: var(--warning); border-color: rgba(251, 191, 36, 0.45); }
+
+/* ------------------------------------------------------------------ donuts */
+
+.donut-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  height: 108px;
+  min-height: 108px;
+}
+
+.donut { width: 100px; height: 100px; display: block; }
+
+.donut .track {
+  fill: none;
+  stroke: var(--track);
+  stroke-width: 9;
+}
+
+.donut .arc {
+  fill: none;
+  stroke: var(--normal);
+  stroke-width: 9;
+  stroke-linecap: round;
+  transform: rotate(-90deg);
+  transform-origin: 50% 50%;
+  /* The arc is animated rather than redrawn, so a value change glides. */
+  transition: stroke-dashoffset 600ms cubic-bezier(0.22, 0.61, 0.36, 1),
+              stroke 400ms linear;
+}
+
+.donut.normal .arc { stroke: var(--normal); }
+.donut.warning .arc { stroke: var(--warning); }
+.donut.critical .arc { stroke: var(--critical); }
+.donut.unavailable .arc { stroke: var(--unavailable); stroke-dasharray: 3 5; }
+
+/* Retained readings from a node that has since gone offline are dimmed, so a
+   stale figure is never mistaken for a current one. */
+.donut.stale .arc { opacity: 0.4; }
+.donut.stale .value { fill: var(--ink-dim); }
+
+.donut .value {
+  font-size: 19px;
+  font-weight: 700;
+  fill: var(--ink);
+  text-anchor: middle;
+  font-family: Consolas, "Cascadia Mono", ui-monospace, monospace;
+}
+.donut.unavailable .value { font-size: 15px; fill: var(--ink-faint); }
+
+.donut .unit { font-size: 10px; font-weight: 600; fill: var(--ink-dim); }
+
+.donut .label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1.1px;
+  fill: var(--ink-dim);
+  text-anchor: middle;
+}
+
+/* ------------------------------------------------------------------- stats */
+
+.stats {
+  flex: 1 1 auto;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-auto-rows: 15px;
+  column-gap: 10px;
+  align-content: start;
+  font-size: 11px;
+  line-height: 15px;
+}
+
+.stat { display: flex; gap: 5px; min-width: 0; }
+.stat .k { color: var(--ink-faint); letter-spacing: 0.5px; flex: 0 0 auto; }
+.stat .v {
+  color: var(--ink);
+  font-family: Consolas, "Cascadia Mono", ui-monospace, monospace;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.stat .v.dim { color: var(--ink-faint); }
+.stat .v.warning { color: var(--warning); }
+.stat .v.critical { color: var(--critical); }
+.stat .v.good { color: var(--normal-2); }
+.stat.wide { grid-column: 1 / -1; }
+
+.note {
+  grid-column: 1 / -1;
+  font-size: 10px;
+  color: var(--ink-faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.note.warning { color: var(--warning); }
+
+/* ------------------------------------------------------------------ banner */
+
+.banner {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: 8px;
+  z-index: 8;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 6px 12px;
+  border: 1px solid rgba(248, 113, 113, 0.55);
+  border-radius: 5px;
+  background: #1a0f13;
+}
+.banner[hidden] { display: none; }
+
+.banner-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1.1px;
+  color: var(--critical);
+  flex: 0 0 auto;
+}
+
+.banner-text {
+  font-size: 11px;
+  color: var(--ink-dim);
+  font-family: Consolas, "Cascadia Mono", ui-monospace, monospace;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.overall.waiting { color: var(--ink-faint); }
+
+/* ------------------------------------------------------------------ detail */
+
+.detail {
+  position: absolute;
+  inset: 0;
+  /* Fully opaque: panels showing through behind the figures made them hard
+     to read at this panel size. */
+  background: var(--bg);
+  border: 1px solid var(--panel-edge);
+  border-radius: 6px;
+  padding: 8px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  z-index: 5;
+}
+.detail[hidden] { display: none; }
+
+.detail-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1.2px;
+  border-bottom: 1px solid var(--panel-edge);
+  padding-bottom: 4px;
+}
+.detail-hint { font-size: 10px; font-weight: 400; color: var(--ink-faint); letter-spacing: 0.6px; }
+
+.detail-grid {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+}
+
+.detail-col { min-width: 0; overflow: hidden; }
+
+.detail-col h3 {
+  font-size: 10px;
+  letter-spacing: 1.1px;
+  color: var(--normal);
+  margin-bottom: 3px;
+}
+.detail-col h3 + .kv { margin-bottom: 6px; }
+
+.kv { font-size: 11px; line-height: 14px; }
+.kv div { display: flex; justify-content: space-between; gap: 8px; }
+.kv dt { color: var(--ink-faint); white-space: nowrap; }
+.kv dd {
+  color: var(--ink);
+  font-family: Consolas, "Cascadia Mono", ui-monospace, monospace;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.kv dd.dim { color: var(--ink-faint); }
+.kv dd.warning { color: var(--warning); }
+.kv dd.critical { color: var(--critical); }
+.kv dd.good { color: var(--normal-2); }
+
+/* Per-core bars: one row per logical processor. */
+.cores { display: flex; flex-direction: column; gap: 3px; margin-bottom: 6px; }
+.core { display: flex; align-items: center; gap: 6px; font-size: 10px; }
+.core .n { color: var(--ink-faint); width: 22px; flex: 0 0 auto; }
+.core .bar {
+  flex: 1 1 auto;
+  height: 7px;
+  background: var(--track);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.core .fill {
+  height: 100%;
+  width: 0;
+  background: var(--normal);
+  border-radius: 4px;
+  transition: width 500ms cubic-bezier(0.22, 0.61, 0.36, 1), background 300ms linear;
+}
+.core .fill.warning { background: var(--warning); }
+.core .fill.critical { background: var(--critical); }
+.core .p {
+  width: 34px;
+  flex: 0 0 auto;
+  text-align: right;
+  font-family: Consolas, "Cascadia Mono", ui-monospace, monospace;
+  color: var(--ink-dim);
+}
