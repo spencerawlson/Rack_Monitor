@@ -1,0 +1,117 @@
+# PLH Rack Monitor configuration
+#
+# Every setting is optional; the values shown are the defaults. A mistake in
+# this file never stops the dashboard: the default is used instead and the
+# problem is listed on the dashboard (the ! badge in the header) and by
+#   plh-rack-monitor config check
+
+[server]
+# Loopback only. Any other address exposes the dashboard to the network
+# without authentication.
+host = "127.0.0.1"
+port = 8765
+
+[browser]
+# What `plh-rack-monitor run` opens once the server is up.
+open_on_run = true
+# auto | chrome | edge | chromium | firefox | default | none
+kind = "auto"
+# Chromium app window: no address bar or tabs. Ignored by firefox/default.
+app_window = true
+fullscreen = false
+# Initial app window size in pixels; 0 leaves it to the browser.
+# For a 1424x280 panel: window_width = 1424, window_height = 280.
+window_width = 0
+window_height = 0
+
+[display]
+title = "PLH RACK MONITOR"
+# When more machines are configured than fit legibly on screen at once, the
+# combined view pages through them at this interval.
+page_seconds = 10.0
+
+[thresholds]
+# Donut colours, in percent. These are display thresholds, not a verdict on
+# hardware health.
+usage_warning = 70.0
+usage_critical = 90.0
+# CPU temperature, in degrees Celsius. Separate from the percentages above.
+temp_warning_c = 75.0
+temp_critical_c = 90.0
+
+[intervals]
+# Seconds between samples for each family of metrics.
+cpu_mem = 1.5
+net = 1.5
+disk = 5.0
+processes = 10.0
+temperature = 5.0
+disk_health = 60.0
+proxmox = 4.0
+# How often the browser receives a fresh snapshot.
+stream_push = 1.0
+# A collector with no success for this long (or three of its own intervals,
+# whichever is longer) is reported as stale.
+stale_after = 15.0
+# After a failed temperature probe, wait this long before probing again.
+sensor_backoff = 60.0
+# How often a point is added to the sparkline under each donut. This is the
+# spacing of the chart, not a collection interval.
+history_step = 1.0
+
+[history]
+# The sparklines under the donuts, showing where CPU, RAM and DISK have been
+# over the last stretch of time rather than only where they are now.
+enabled = true
+# How much time the chart covers. The number of points is this divided by
+# intervals.history_step.
+seconds = 60.0
+
+[host]
+# Panel title for this machine; empty uses the host name.
+label = ""
+# Mount points always shown, even while absent (an external SSD, for
+# example): ["C:\\", "E:\\"] on Windows, ["/", "/mnt/backup"] elsewhere.
+disks = []
+# Also show every other volume that is found.
+autodiscover_disks = true
+include_removable = true
+# The volume behind the DISK donut; empty uses the system drive (or "/").
+primary_disk = ""
+# CPU temperature. On Windows this needs LibreHardwareMonitor running with
+# its web server (lhm_url) or its WMI provider (lhm_wmi) enabled.
+temperature = true
+lhm_url = "http://127.0.0.1:8085/data.json"
+lhm_wmi = true
+# Physical drive health: the Storage provider on Windows, smartctl on Linux.
+disk_health = true
+
+# ------------------------------------------------------------------ Proxmox
+# One [[proxmox]] block per node; the dashboard shows as many panels as there
+# are blocks. Create a read-only token once per cluster (or once per
+# standalone node):
+#
+#   pveum user add monitor@pve
+#   pveum acl modify / --users monitor@pve --roles PVEAuditor
+#   pveum user token add monitor@pve plh --privsep 0
+#
+# The secret can be written inline, or kept out of this file with
+# token_secret_env (an environment variable name) or token_secret_file.
+#
+# [[proxmox]]
+# name = "PVE01"
+# host = "192.168.1.11"
+# port = 8006
+# node = ""                 # API node name; discovered automatically if empty
+# token_id = "monitor@pve!plh"
+# token_secret = ""
+# verify_tls = true
+# ca_cert = "certs/pve-root-ca.pem"   # relative to this file
+# timeout = 4.0
+#
+# [[proxmox]]
+# name = "PVE02"
+# host = "192.168.1.12"
+# token_id = "monitor@pve!plh"
+# token_secret_env = "PLH_PVE_SECRET"
+# ca_cert = "certs/pve-root-ca.pem"

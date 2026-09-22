@@ -40,31 +40,61 @@ function Stop-ById([int]$processId, [string]$reason) {
     }
 }
 
+function Test-Answers {
+    try {
+        $response = Invoke-WebRequest -Uri $HealthUrl -UseBasicParsing -TimeoutSec 2
+        return ($response.StatusCode -eq 200) -and ($response.Content -match '"status"')
+    } catch {
+        return $false
+    }
+}
+
 $stopped = $false
+
+$listener = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue |
+            Select-Object -First 1
 
 if (Test-Path $PidFile) {
     $recorded = (Get-Content $PidFile -Raw).Trim()
     if ($recorded -match '^\d+$') {
-        $process = Get-Process -Id ([int]$recorded) -ErrorAction SilentlyContinue
-        if ($process) {
-            $stopped = Stop-ById ([int]$recorded) "from .plh_monitor.pid"
-        } else {
-            Write-Host "[PLH] Recorded PID $recorded is not running."
+        $recordedPid = [int]$recorded
+        # The pid file names the most recently started instance, which may be
+        # serving a different port. Use it only when it is the process serving
+        # this port, or that process's launcher; otherwise leave it alone.
+        $serving = $false
+        if ($listener) {
+            if ($listener.OwningProcess -eq $recordedPid) {
+                $serving = $true
+            } else {
+                $owner = Get-CimInstance Win32_Process -Filter "ProcessId=$($listener.OwningProcess)" -ErrorAction SilentlyContinue
+                $serving = [bool]($owner -and $owner.ParentProcessId -eq $recordedPid)
+            }
         }
+        if ($serving) {
+            $stopped = Stop-ById $recordedPid "from .plh_monitor.pid"
+            Remove-Item $PidFile -ErrorAction SilentlyContinue
+        } elseif (Get-Process -Id $recordedPid -ErrorAction SilentlyContinue) {
+            Write-Host "[PLH] .plh_monitor.pid names PID $recordedPid, which is not serving port $Port - left running."
+        } else {
+            Write-Host "[PLH] Recorded PID $recordedPid is not running."
+            Remove-Item $PidFile -ErrorAction SilentlyContinue
+        }
+    } else {
+        Remove-Item $PidFile -ErrorAction SilentlyContinue
     }
-    Remove-Item $PidFile -ErrorAction SilentlyContinue
+}
+
+# Only a quiet health endpoint counts as stopped.
+if ($stopped) {
+    Start-Sleep -Milliseconds 700
+    if (Test-Answers) {
+        Write-Host "[PLH] Still answering on port $Port - stopping the process that owns the listener."
+        $stopped = $false
+    }
 }
 
 if (-not $stopped) {
-    $answers = $false
-    try {
-        $response = Invoke-WebRequest -Uri $HealthUrl -UseBasicParsing -TimeoutSec 2
-        $answers = ($response.StatusCode -eq 200) -and ($response.Content -match '"status"')
-    } catch {
-        $answers = $false
-    }
-
-    if ($answers) {
+    if (Test-Answers) {
         $listener = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue |
                     Select-Object -First 1
         if ($listener) {

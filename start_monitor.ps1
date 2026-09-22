@@ -131,6 +131,16 @@ if ($alreadyRunning) {
         exit 1
     }
     Write-Step "Health endpoint responded."
+
+    # A venv's python.exe is a launcher that runs the real interpreter as a
+    # child, and the child owns the socket. Record the listener rather than the
+    # launcher, so stop_monitor.ps1 stops the process that is actually serving.
+    $listener = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue |
+                Select-Object -First 1
+    if ($listener) {
+        Set-Content -Path $PidFile -Value $listener.OwningProcess -Encoding ascii
+        Write-Step "Serving PID $($listener.OwningProcess) (launcher $($process.Id))"
+    }
 }
 
 # --- 5. Open the dashboard --------------------------------------------------

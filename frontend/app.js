@@ -351,6 +351,14 @@
     }
   }
 
+  /** "VM 1/2", "VM n/p" when the token may not look, "VM N/A" when the count
+   *  could not be read - never 0/0 standing in for an unknown count. */
+  function guestCount(label, guests) {
+    if (guests && guests.permitted === false) return label + " n/p";
+    if (!guests || !isNum(guests.total)) return label + " N/A";
+    return label + " " + (isNum(guests.running) ? guests.running : 0) + "/" + guests.total;
+  }
+
   function renderNode(key, node) {
     var s = sections[key];
     if (!node) return;
@@ -403,20 +411,7 @@
         ? fmtBytes(node.memory_used_bytes) + "/" + fmtBytes(node.memory_total_bytes)
         : "N/A"
     );
-    s.stats.set(
-      "guests",
-      "GUESTS",
-      (node.vms && node.vms.permitted === false
-        ? "VM n/p"
-        : "VM " + ((node.vms && node.vms.running) || 0) + "/" + ((node.vms && node.vms.total) || 0)) +
-        "  " +
-        (node.containers && node.containers.permitted === false
-          ? "CT n/p"
-          : "CT " +
-            ((node.containers && node.containers.running) || 0) +
-            "/" +
-            ((node.containers && node.containers.total) || 0))
-    );
+    s.stats.set("guests", "GUESTS", guestCount("VM", node.vms) + "  " + guestCount("CT", node.containers));
     s.stats.set(
       "store",
       "STORE",
@@ -897,6 +892,9 @@
           cfg.nodes.forEach(function (node) {
             var s = sections[node.key];
             if (s && node.name) s.title.textContent = node.name;
+            // The view buttons carry the same names as the panels they select.
+            var btn = document.querySelector('.view-btn[data-view="' + node.key + '"]');
+            if (btn && node.name) btn.textContent = node.name;
           });
         }
       })

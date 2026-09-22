@@ -1,0 +1,460 @@
+/* PLH Rack Monitor - adaptive layout.
+
+   Two scale units keep one design legible on any screen:
+   --hu  the header, banner and detail view, from the window size;
+   --u   everything inside a panel, from that panel's own size (container
+         query units), so a panel looks the same whether it is one of three on
+         a 1424x280 strip or one of four on a 4K display.
+   Both are exactly 1px at 1424x280 with three panels, the reference layout
+   the base numbers below were designed at. */
+
+:root {
+  --bg: #070b11;
+  --panel: #0e151f;
+  --panel-edge: #1c2634;
+  --ink: #e6edf5;
+  --ink-dim: #93a4b8;
+  --ink-faint: #5b6b80;
+
+  --normal: #22d3ee;
+  --normal-2: #34d399;
+  --accent: #3b82f6;
+  --warning: #fbbf24;
+  --critical: #f87171;
+  --unavailable: #47566b;
+
+  --track: #16202d;
+  --mono: Consolas, "Cascadia Mono", "SF Mono", "DejaVu Sans Mono", ui-monospace, monospace;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  width: 100%;
+  height: 100%;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: "Segoe UI", system-ui, -apple-system, "Noto Sans", sans-serif;
+  /* No scrollbar at any size: the layout is computed to fit. */
+  overflow: hidden;
+}
+
+.stage {
+  --hu: max(0.9px, min(calc(100vw / 1424), calc(100vh / 280)));
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--hu) * 6);
+  padding: calc(var(--hu) * 6) calc(var(--hu) * 8) calc(var(--hu) * 8);
+  background: var(--bg);
+}
+
+/* ------------------------------------------------------------------ topbar */
+
+.topbar {
+  flex: 0 0 auto;
+  height: calc(var(--hu) * 30);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: calc(var(--hu) * 10);
+  padding: 0 calc(var(--hu) * 4);
+  border-bottom: 1px solid var(--panel-edge);
+  min-width: 0;
+}
+
+.brand { display: flex; align-items: center; gap: calc(var(--hu) * 8); min-width: 0; }
+
+.brand-mark {
+  flex: 0 0 auto;
+  width: calc(var(--hu) * 9);
+  height: calc(var(--hu) * 9);
+  border-radius: calc(var(--hu) * 2);
+  background: var(--normal);
+  box-shadow: 0 0 calc(var(--hu) * 8) rgba(34, 211, 238, 0.7);
+}
+
+.brand-name {
+  font-size: calc(var(--hu) * 14);
+  font-weight: 700;
+  letter-spacing: calc(var(--hu) * 1.6);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.topbar-right {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--hu) * 10);
+  min-width: 0;
+}
+
+.views { display: flex; gap: calc(var(--hu) * 3); min-width: 0; overflow: hidden; }
+
+.view-btn, .icon-btn, .warn-badge {
+  font-family: inherit;
+  font-size: calc(var(--hu) * 9);
+  font-weight: 700;
+  letter-spacing: calc(var(--hu) * 0.7);
+  color: var(--ink-faint);
+  background: transparent;
+  border: 1px solid var(--panel-edge);
+  border-radius: calc(var(--hu) * 3);
+  padding: calc(var(--hu) * 3) calc(var(--hu) * 6);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.icon-btn { font-size: calc(var(--hu) * 10); font-weight: 400; color: var(--ink-dim); }
+.view-btn:hover, .icon-btn:hover { color: var(--ink); border-color: var(--normal); }
+.view-btn.active { color: var(--bg); background: var(--normal); border-color: var(--normal); }
+.warn-badge { color: var(--warning); border-color: rgba(251, 191, 36, 0.5); }
+.warn-badge[hidden] { display: none; }
+
+.pager {
+  font-size: calc(var(--hu) * 10);
+  font-family: var(--mono);
+  color: var(--ink-dim);
+  white-space: nowrap;
+}
+.pager[hidden] { display: none; }
+
+.link-state {
+  font-size: calc(var(--hu) * 10);
+  letter-spacing: calc(var(--hu) * 0.8);
+  color: var(--ink-faint);
+  border: 1px solid var(--panel-edge);
+  border-radius: calc(var(--hu) * 3);
+  padding: calc(var(--hu) * 2) calc(var(--hu) * 6);
+  white-space: nowrap;
+}
+.link-state.live { color: var(--normal-2); border-color: rgba(52, 211, 153, 0.4); }
+.link-state.polling { color: var(--warning); border-color: rgba(251, 191, 36, 0.4); }
+.link-state.down { color: var(--critical); border-color: rgba(248, 113, 113, 0.5); }
+
+.overall {
+  font-size: calc(var(--hu) * 12);
+  font-weight: 700;
+  letter-spacing: calc(var(--hu) * 1.2);
+  color: var(--normal-2);
+  white-space: nowrap;
+}
+.overall.warning { color: var(--warning); }
+.overall.critical { color: var(--critical); }
+.overall.waiting { color: var(--ink-faint); }
+
+/* ------------------------------------------------------------------ panels */
+
+.panels {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-auto-rows: minmax(0, 1fr);
+  gap: calc(var(--hu) * 8);
+}
+
+.panel {
+  container-type: size;
+  min-width: 0;
+  min-height: 0;
+  background: var(--panel);
+  border: 1px solid var(--panel-edge);
+  border-radius: calc(var(--hu) * 6);
+  overflow: hidden;
+  cursor: pointer;
+}
+.panel[hidden] { display: none; }
+.panel.offline { border-color: rgba(248, 113, 113, 0.35); }
+.panel.unconfigured { border-style: dashed; border-color: #263248; }
+
+/* The reference panel content box is 462 x 228 (a panel of 464 x 230). */
+.pi {
+  --u: min(calc(100cqw / 462), calc(100cqh / 228));
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--u) * 4);
+  padding: calc(var(--u) * 7) calc(var(--u) * 10) calc(var(--u) * 8);
+}
+
+.panel-head {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: calc(var(--u) * 8);
+  height: calc(var(--u) * 17);
+}
+
+.panel-head h2 {
+  font-size: calc(var(--u) * 12);
+  font-weight: 700;
+  letter-spacing: calc(var(--u) * 1.3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.pill {
+  flex: 0 0 auto;
+  font-size: calc(var(--u) * 9);
+  font-weight: 700;
+  letter-spacing: calc(var(--u) * 0.7);
+  padding: calc(var(--u) * 2) calc(var(--u) * 6);
+  border-radius: calc(var(--u) * 9);
+  border: 1px solid var(--panel-edge);
+  color: var(--ink-faint);
+  white-space: nowrap;
+}
+.pill.online { color: var(--normal-2); border-color: rgba(52, 211, 153, 0.45); }
+.pill.warning { color: var(--warning); border-color: rgba(251, 191, 36, 0.45); }
+.pill.offline { color: var(--critical); border-color: rgba(248, 113, 113, 0.5); }
+.pill.unconfigured { color: var(--ink-faint); }
+
+/* ------------------------------------------------------------------ donuts */
+
+.donut-row {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  height: calc(var(--u) * 92);
+}
+
+.donut {
+  display: block;
+  width: calc(var(--u) * 86);
+  height: calc(var(--u) * 86);
+}
+
+.donut .track { fill: none; stroke: var(--track); stroke-width: 9; }
+
+.donut .arc {
+  fill: none;
+  stroke: var(--normal);
+  stroke-width: 9;
+  stroke-linecap: round;
+  transform: rotate(-90deg);
+  transform-origin: 50% 50%;
+  /* The arc is animated rather than redrawn, so a value change glides. */
+  transition: stroke-dashoffset 600ms cubic-bezier(0.22, 0.61, 0.36, 1), stroke 400ms linear;
+}
+.donut.normal .arc { stroke: var(--normal); }
+.donut.warning .arc { stroke: var(--warning); }
+.donut.critical .arc { stroke: var(--critical); }
+.donut.unavailable .arc { stroke: var(--unavailable); stroke-dasharray: 3 5; }
+
+/* Retained readings from a node that has since gone offline are dimmed, so a
+   stale figure is never mistaken for a current one. */
+.donut.stale .arc { opacity: 0.4; }
+.donut.stale .value { fill: var(--ink-dim); }
+
+/* Text inside the SVG is sized in viewBox units and scales with the ring. */
+.donut .value { font-size: 19px; font-weight: 700; fill: var(--ink); text-anchor: middle; font-family: var(--mono); }
+.donut.unavailable .value { font-size: 15px; fill: var(--ink-faint); }
+.donut .label { font-size: 10px; font-weight: 700; letter-spacing: 1.1px; fill: var(--ink-dim); text-anchor: middle; }
+
+/* -------------------------------------------------------------- sparklines */
+
+/* Where each ring has been over the last stretch of time. The row mirrors
+   the donut row's widths and spacing, so a chart always sits directly under
+   the figure it belongs to. */
+.spark-row {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  height: calc(var(--u) * 20);
+}
+
+/* display:flex would otherwise win over the hidden attribute and leave an
+   empty strip on a panel with no window yet, exactly as it does for .panel. */
+.spark-row[hidden] { display: none; }
+
+.spark {
+  display: block;
+  width: calc(var(--u) * 86);
+  height: calc(var(--u) * 20);
+}
+
+.spark .line {
+  fill: none;
+  stroke: var(--normal);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  /* The viewBox is stretched to the panel, so the stroke is taken out of
+     that transform to stop it thickening along one axis only. */
+  vector-effect: non-scaling-stroke;
+  transition: stroke 400ms linear;
+}
+.spark.normal .line { stroke: var(--normal); }
+.spark.warning .line { stroke: var(--warning); }
+.spark.critical .line { stroke: var(--critical); }
+.spark.unavailable .line { stroke: var(--unavailable); }
+
+/* Dimmed with the ring above it, so a retained reading from a node that has
+   gone offline is never mistaken for a current one. */
+.spark.stale .line { opacity: 0.4; }
+
+/* ------------------------------------------------------------------- stats */
+
+.stats {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-auto-rows: calc(var(--u) * 15);
+  column-gap: calc(var(--u) * 10);
+  align-content: start;
+  font-size: calc(var(--u) * 11);
+  line-height: calc(var(--u) * 15);
+}
+
+.stat { display: flex; gap: calc(var(--u) * 5); min-width: 0; }
+.stat[hidden] { display: none; }
+.stat .k { color: var(--ink-faint); letter-spacing: calc(var(--u) * 0.5); flex: 0 0 auto; }
+.stat .v { color: var(--ink); font-family: var(--mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stat .v.dim { color: var(--ink-faint); }
+.stat .v.warning { color: var(--warning); }
+.stat .v.critical { color: var(--critical); }
+.stat .v.good { color: var(--normal-2); }
+
+.note {
+  grid-column: 1 / -1;
+  font-size: calc(var(--u) * 10);
+  color: var(--ink-faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.note[hidden] { display: none; }
+.note.warning { color: var(--warning); }
+
+/* A panel much wider than tall - one machine alone on a strip display -
+   uses larger rings and a four-column stat grid instead of empty margins.
+   Its reference content box is 1406 x 235. */
+@container (min-aspect-ratio: 4 / 1) {
+  .pi {
+    --u: min(calc(100cqw / 1406), calc(100cqh / 235));
+    padding: calc(var(--u) * 10) calc(var(--u) * 24) calc(var(--u) * 12);
+  }
+  .panel-head { height: calc(var(--u) * 22); }
+  .panel-head h2 { font-size: calc(var(--u) * 16); letter-spacing: calc(var(--u) * 2); }
+  .pill { font-size: calc(var(--u) * 11); padding: calc(var(--u) * 3) calc(var(--u) * 9); }
+  .donut-row { height: calc(var(--u) * 112); justify-content: center; gap: calc(var(--u) * 90); }
+  .donut { width: calc(var(--u) * 106); height: calc(var(--u) * 106); }
+  /* Same centring and gap as the rings above, so the charts stay under them. */
+  .spark-row { height: calc(var(--u) * 18); justify-content: center; gap: calc(var(--u) * 90); }
+  .spark { width: calc(var(--u) * 106); height: calc(var(--u) * 18); }
+  .stats {
+    grid-template-columns: repeat(4, 1fr);
+    grid-auto-rows: calc(var(--u) * 17);
+    font-size: calc(var(--u) * 12);
+    line-height: calc(var(--u) * 17);
+    column-gap: calc(var(--u) * 26);
+  }
+  .note { font-size: calc(var(--u) * 11); }
+}
+
+/* ------------------------------------------------------------------ banner */
+
+.banner {
+  position: absolute;
+  left: calc(var(--hu) * 8);
+  right: calc(var(--hu) * 8);
+  bottom: calc(var(--hu) * 8);
+  z-index: 8;
+  display: flex;
+  align-items: baseline;
+  gap: calc(var(--hu) * 10);
+  padding: calc(var(--hu) * 6) calc(var(--hu) * 12);
+  border: 1px solid rgba(248, 113, 113, 0.55);
+  border-radius: calc(var(--hu) * 5);
+  background: #1a0f13;
+}
+.banner[hidden] { display: none; }
+.banner.info { border-color: rgba(251, 191, 36, 0.55); background: #1a160c; }
+.banner-title { font-size: calc(var(--hu) * 11); font-weight: 700; letter-spacing: calc(var(--hu) * 1.1); color: var(--critical); flex: 0 0 auto; }
+.banner.info .banner-title { color: var(--warning); }
+.banner-text { font-size: calc(var(--hu) * 11); color: var(--ink-dim); font-family: var(--mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ------------------------------------------------------------------ detail */
+
+.detail {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--hu) * 6);
+  padding: calc(var(--hu) * 8) calc(var(--hu) * 12);
+  /* Fully opaque, so panels behind never bleed through the figures. */
+  background: var(--bg);
+  border: 1px solid var(--panel-edge);
+  border-radius: calc(var(--hu) * 6);
+}
+.detail[hidden] { display: none; }
+
+.detail-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: calc(var(--hu) * 10);
+  font-size: calc(var(--hu) * 12);
+  font-weight: 700;
+  letter-spacing: calc(var(--hu) * 1.2);
+  border-bottom: 1px solid var(--panel-edge);
+  padding-bottom: calc(var(--hu) * 4);
+  white-space: nowrap;
+  overflow: hidden;
+}
+.detail-head span:first-child { overflow: hidden; text-overflow: ellipsis; }
+.detail-hint { font-size: calc(var(--hu) * 10); font-weight: 400; color: var(--ink-faint); letter-spacing: calc(var(--hu) * 0.6); }
+
+.detail-grid {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: calc(var(--hu) * 14);
+}
+
+.detail-col { min-width: 0; overflow: hidden; }
+.detail-col h3 { font-size: calc(var(--hu) * 10); letter-spacing: calc(var(--hu) * 1.1); color: var(--normal); margin-bottom: calc(var(--hu) * 3); }
+.detail-col h3 + .kv { margin-bottom: calc(var(--hu) * 6); }
+
+.kv { font-size: calc(var(--hu) * 11); line-height: calc(var(--hu) * 14); }
+.kv div { display: flex; justify-content: space-between; gap: calc(var(--hu) * 8); }
+.kv dt { color: var(--ink-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.kv dd { color: var(--ink); font-family: var(--mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 0 1 auto; }
+.kv dd.dim { color: var(--ink-faint); }
+.kv dd.warning { color: var(--warning); }
+.kv dd.critical { color: var(--critical); }
+.kv dd.good { color: var(--normal-2); }
+
+/* One column of bars for a few cores; app.js adds columns for many. */
+.cores {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: calc(var(--hu) * 3) calc(var(--hu) * 10);
+  margin-bottom: calc(var(--hu) * 6);
+}
+.core { display: flex; align-items: center; gap: calc(var(--hu) * 6); font-size: calc(var(--hu) * 10); }
+.core .n { color: var(--ink-faint); width: calc(var(--hu) * 26); flex: 0 0 auto; }
+.core .bar { flex: 1 1 auto; height: calc(var(--hu) * 7); background: var(--track); border-radius: calc(var(--hu) * 4); overflow: hidden; }
+.core .fill {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: var(--normal);
+  border-radius: calc(var(--hu) * 4);
+  transition: width 500ms cubic-bezier(0.22, 0.61, 0.36, 1), background 300ms linear;
+}
+.core .fill.warning { background: var(--warning); }
+.core .fill.critical { background: var(--critical); }
+.core .p { width: calc(var(--hu) * 34); flex: 0 0 auto; text-align: right; font-family: var(--mono); color: var(--ink-dim); }

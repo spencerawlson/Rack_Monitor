@@ -193,38 +193,55 @@ scaled, so the layout never reflows and no scrollbars appear.
 
 ## Adding the Proxmox nodes
 
-Nothing in the source needs to change. On **each** node:
+Nothing in the source needs to change.
+
+**If the nodes form a cluster, run this once, on any node.** Users, tokens and
+permissions live in the cluster filesystem (`/etc/pve`), so they apply to every
+member; running it on the second node fails with "already exists". **For two
+standalone nodes, run it on each.**
 
 ```bash
 # 1. A user and a read-only role assignment
-pveum user add monitor@pve
-pveum aclmod / -user monitor@pve -role PVEAuditor
+pveum user add monitor@pve --comment "PLH Rack Monitor (read-only)"
+pveum acl modify / --users monitor@pve --roles PVEAuditor
 
 # 2. A token for this dashboard (privsep 0 makes the token inherit the
 #    user's read-only permissions)
 pveum user token add monitor@pve plh --privsep 0
 ```
 
-The command prints the token secret **once**. Copy it into `.env`:
+The command prints the token secret **once**. Copy it into `.env` — in a cluster
+the same token id and secret go on both nodes:
 
 ```env
-PROXMOX_NODE_1_NAME=PVE01
-PROXMOX_NODE_1_HOST=10.20.20.11
-PROXMOX_NODE_1_PORT=8006
-PROXMOX_NODE_1_API_NODE=pve01
+PROXMOX_NODE_1_NAME=PVE
+PROXMOX_NODE_1_HOST=192.168.1.11
+PROXMOX_NODE_1_API_NODE=pve
 PROXMOX_NODE_1_TOKEN_ID=monitor@pve!plh
 PROXMOX_NODE_1_TOKEN_SECRET=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
-PROXMOX_NODE_1_VERIFY_TLS=true
-PROXMOX_NODE_1_CA_CERT_PATH=C:\certs\pve01-ca.pem
+
+PROXMOX_NODE_2_NAME=PVE02
+PROXMOX_NODE_2_HOST=192.168.1.12
+PROXMOX_NODE_2_API_NODE=pve02
+PROXMOX_NODE_2_TOKEN_ID=monitor@pve!plh
+PROXMOX_NODE_2_TOKEN_SECRET=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+
+# One CA covers every member of a cluster (see TLS certificates)
+PROXMOX_CA_CERT_PATH=C:\Users\<you>\Desktop\PLH_Rack_Monitor\certs\pve-root-ca.pem
 ```
 
-Repeat with `PROXMOX_NODE_2_*`, then restart the backend.
+Then restart the backend (`.\stop_monitor.ps1`, `.\start_monitor.ps1`).
 
-- `API_NODE` is the node name inside Proxmox (`pvecm nodes`). If it is left empty
-  or does not match, the name is discovered from `/nodes` automatically.
-- Each node is polled independently through its own `/nodes/{node}/...` endpoints.
-  Cluster-wide endpoints are deliberately not used, so two nodes cannot
-  double-count shared resources.
+- `API_NODE` is the node name inside Proxmox (`pvecm nodes`). Setting it is the
+  surest option. If it is left empty or does not match, the name is discovered:
+  a standalone node is the only entry in `/nodes`; in a cluster `/nodes` lists
+  every member whichever host answers, so the member that answered is taken from
+  the `local` flag in `/cluster/status`. A discovery that fails (node still
+  booting) is retried on the next poll rather than remembered.
+- Each node is polled independently, through its own host and its own
+  `/nodes/{node}/...` endpoints, so one node being down never hides the other.
+  No figure is read from a cluster-wide endpoint, so two nodes cannot
+  double-count shared resources; `/cluster/status` is read only to identify a node.
 - `PVEAuditor` is read-only. The dashboard never writes to Proxmox.
 
 **Node states on the dashboard**
@@ -250,9 +267,18 @@ TLS verification is **on by default** and is not disabled anywhere in the code.
 Proxmox ships a self-signed certificate, which Windows will not trust as-is. Pick one:
 
 1. **Point at the node's CA** (recommended). Copy
-   `/etc/pve/pve-root-ca.pem` from the node to the Windows machine and set
-   `PROXMOX_NODE_1_CA_CERT_PATH=C:\certs\pve01-ca.pem`. Use
-   `PROXMOX_CA_CERT_PATH` for a bundle shared by both nodes.
+   `/etc/pve/pve-root-ca.pem` from the node into `certs\` (git-ignored) and set
+   `PROXMOX_NODE_1_CA_CERT_PATH` to it. **In a cluster every member's
+   certificate is signed by that same CA**, so one file set as
+   `PROXMOX_CA_CERT_PATH` covers both nodes:
+
+   ```powershell
+   scp root@192.168.1.11:/etc/pve/pve-root-ca.pem .\certs\pve-root-ca.pem
+   ```
+
+   The node certificates carry the node's IP address as a subject alternative
+   name, so connecting by IP verifies correctly. This passes Python 3.14's
+   strict X.509 checks as issued; nothing is relaxed.
 2. **Install a certificate from a CA you run or from Let's Encrypt** on the node,
    and leave the CA path empty if the issuer is already trusted by Windows.
 3. **Last resort:** `PROXMOX_NODE_1_VERIFY_TLS=false`. This must be set
@@ -331,6 +357,8 @@ Nothing has been changed in your Windows startup settings. To set it up yourself
    - Arguments:
      `-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "C:\Users\<you>\Desktop\PLH_Rack_Monitor\start_monitor.ps1" -App`
    - Start in: `C:\Users\<you>\Desktop\PLH_Rack_Monitor`
+   Leave *Run with highest privileges* unticked: the dashboard needs no
+   elevation, and an elevated backend cannot be stopped from a normal PowerShell.
 5. **Conditions:** untick *Start the task only if the computer is on AC power*.
 6. **Settings:** untick *Stop the task if it runs longer than...*.
 
@@ -385,7 +413,19 @@ secret must match. Check the role assignment with
 
 **A node says `OFFLINE` but is reachable in a browser** — confirm the API node name
 with `pvecm nodes`, and that port 8006 is reachable from the Windows host
-(`Test-NetConnection 10.20.20.11 -Port 8006`).
+(`Test-NetConnection 192.168.1.11 -Port 8006`).
+
+**A node says `OFFLINE — Timed out after 4s` while it is busy** — Proxmox answers
+its API slowly when its disk is saturated (a large copy, a backup, a VM import);
+the storage query in particular waits on the disk. The card recovers by itself
+when the load ends. Storage and guest figures that time out keep their last
+good value meanwhile. For a node that is often this busy, raise
+`PROXMOX_NODE_n_TIMEOUT_SECONDS`.
+
+**`stop_monitor.ps1` says `Access is denied`** — that backend was started from an
+elevated (administrator) PowerShell, and a normal PowerShell cannot stop it.
+Run `.\stop_monitor.ps1` once from an administrator PowerShell, then start it
+normally. The dashboard needs no elevation.
 
 **CPU always reads 0%** — this was a real bug in an earlier build caused by
 psutil's per-thread comparison state; CPU is now derived from `cpu_times` deltas
@@ -427,8 +467,9 @@ pinned Chrome window may still hold an old script; reload with `Ctrl+F5`.
   running/sleeping split is not meaningful. Glances behaves the same way.
 - **Proxmox exposes no temperature** through its documented API, so node
   temperature is always `N/A`.
-- **Proxmox integration has not been exercised against real hardware** — no node
-  was reachable during development. It is covered by tests against recorded API
-  payloads, and the node cards correctly show `UNCONFIGURED`.
+- **Proxmox integration was verified against real hardware on 2026-09-21**: a
+  two-node Proxmox VE 9.2 cluster (`pve`, `pve02`), polled by IP with full TLS
+  verification against the cluster CA and a `PVEAuditor` token. The tests use
+  recorded payloads, so the suite still runs with no node present.
 - The 1424 x 280 layout was verified in headless Chromium at that exact viewport,
   **not** on the physical GeekPi panel.

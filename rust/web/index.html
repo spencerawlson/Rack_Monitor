@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PLH Rack Monitor</title>
+<link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+<!-- The stage fills the window. Panels are laid out by app.js from the
+     configured machines, and every size inside a panel scales from that
+     panel's own dimensions, so the same page fits a 1424x280 strip, a laptop
+     or a wall display without a separate layout for each. -->
+<div id="stage" class="stage">
+
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark"></span>
+      <span class="brand-name" id="brand-name">PLH RACK MONITOR</span>
+    </div>
+    <div class="topbar-right">
+      <span class="pager" id="pager" hidden></span>
+      <div class="views" id="views" role="group" aria-label="View"></div>
+      <button id="warnings" class="warn-badge" type="button" hidden>!</button>
+      <span id="link-state" class="link-state" title="Live update stream">CONNECTING</span>
+      <span id="overall" class="overall waiting">STARTING</span>
+      <button id="detail-btn" class="icon-btn" type="button" title="Detail view (D)">DETAIL</button>
+      <button id="fs-btn" class="icon-btn" type="button" title="Fullscreen (F11)">&#x26F6;</button>
+    </div>
+  </header>
+
+  <main class="panels" id="panels"></main>
+
+  <div class="banner" id="banner" hidden>
+    <span class="banner-title" id="banner-title">BACKEND UNREACHABLE</span>
+    <span class="banner-text" id="banner-text"></span>
+  </div>
+
+  <div class="detail" id="detail" hidden>
+    <div class="detail-head">
+      <span id="detail-title">HOST &mdash; DETAIL</span>
+      <span class="detail-hint">D or ESC to close</span>
+    </div>
+    <div class="detail-grid">
+      <div class="detail-col">
+        <h3>CPU</h3>
+        <div id="cores" class="cores"></div>
+        <dl id="detail-cpu" class="kv"></dl>
+      </div>
+      <div class="detail-col">
+        <h3>MEMORY</h3>
+        <dl id="detail-mem" class="kv"></dl>
+        <h3>PROCESSES</h3>
+        <dl id="detail-proc" class="kv"></dl>
+      </div>
+      <div class="detail-col">
+        <h3>STORAGE</h3>
+        <dl id="detail-disk" class="kv"></dl>
+      </div>
+      <div class="detail-col">
+        <h3>NETWORK</h3>
+        <dl id="detail-net" class="kv"></dl>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<template id="panel-template">
+  <section class="panel">
+    <div class="pi">
+      <div class="panel-head"><h2></h2><span class="pill">--</span></div>
+      <div class="donut-row"></div>
+      <div class="spark-row" hidden></div>
+      <div class="stats"></div>
+    </div>
+  </section>
+</template>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

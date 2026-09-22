@@ -1,0 +1,7 @@
+# The MSVC build links the C runtime statically, so the installed .exe runs on
+# a Windows machine that has no Visual C++ redistributable.
+[target.x86_64-pc-windows-msvc]
+rustflags = ["-C", "target-feature=+crt-static"]
+
+[target.aarch64-pc-windows-msvc]
+rustflags = ["-C", "target-feature=+crt-static"]

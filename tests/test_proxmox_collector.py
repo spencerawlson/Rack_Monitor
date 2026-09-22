@@ -380,6 +380,113 @@ async def test_node_name_is_discovered_when_the_configured_one_differs(make_sett
 
 
 @pytest.mark.asyncio
+async def test_cluster_member_is_identified_by_its_local_flag(make_settings):
+    """In a cluster /nodes lists every member whichever host answers, so a
+    display name that matches none of them is resolved via /cluster/status."""
+    settings, node = _configured(make_settings, PROXMOX_NODE_1_API_NODE="PVE02")
+    routes = {
+        "/nodes/pve02/status": (200, STATUS_PAYLOAD),
+        "/cluster/status": (
+            200,
+            {
+                "data": [
+                    {"type": "cluster", "name": "homelab", "quorate": 1},
+                    {"type": "node", "name": "pve", "local": 0, "ip": "192.168.1.11"},
+                    {"type": "node", "name": "pve02", "local": 1, "ip": "192.168.1.12"},
+                ]
+            },
+        ),
+        "/nodes": (200, {"data": [{"node": "pve"}, {"node": "pve02"}]}),
+    }
+    collector = ProxmoxCollector(node, settings, transport=_handler(routes))
+    result = await collector.collect()
+    await collector.aclose()
+
+    assert result["status"] == STATUS_ONLINE
+    assert result["api_node"] == "pve02"
+
+
+@pytest.mark.asyncio
+async def test_a_failed_discovery_is_retried_rather_than_cached(make_settings):
+    """A node that was down when the dashboard started must still be
+    identified once it answers, without restarting the dashboard."""
+    settings, node = _configured(make_settings, PROXMOX_NODE_1_API_NODE="PVE01")
+    state = {"up": False}
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        if not state["up"]:
+            raise httpx.ConnectError("node is booting", request=request)
+        if request.url.path.endswith("/nodes"):
+            return httpx.Response(200, json={"data": [{"node": "pve"}]})
+        return httpx.Response(200, json={"data": {}})
+
+    collector = ProxmoxCollector(node, settings, transport=httpx.MockTransport(handle))
+    client = await collector._get_client()
+    assert await collector._resolve_node(client) == "PVE01"
+    assert collector._resolved_node is None
+
+    state["up"] = True
+    assert await collector._resolve_node(client) == "pve"
+    await collector.aclose()
+
+
+def test_ca_path_becomes_a_verifying_ssl_context(make_settings, tmp_path, monkeypatch):
+    """httpx 0.28 deprecates a CA path for verify; the path must become a
+    context built from that CA, never a disabled check."""
+    ca = tmp_path / "pve-root-ca.pem"
+    ca.write_text("placeholder")
+    seen = {}
+
+    def fake_context(*, cafile=None, **_):
+        seen["cafile"] = cafile
+        return "context"
+
+    monkeypatch.setattr("backend.collectors.proxmox_collector.ssl.create_default_context", fake_context)
+    # make_settings only adds variables, so the case without a CA comes first.
+    settings, node = _configured(make_settings)
+    assert ProxmoxCollector(node, settings)._tls_verify() is True
+
+    settings, node = _configured(make_settings, PROXMOX_NODE_1_CA_CERT_PATH=str(ca))
+    assert ProxmoxCollector(node, settings)._tls_verify() == "context"
+    assert seen["cafile"] == str(ca)
+
+
+@pytest.mark.asyncio
+async def test_a_busy_node_keeps_its_last_storage_and_guest_figures(make_settings):
+    """Seen on a real node under heavy disk load: status answers, but the
+    storage and guest queries time out. The card keeps the last good figures
+    instead of dropping to blanks, while a permission refusal stays visible."""
+    settings, node = _configured(make_settings)
+    state = {"busy": False}
+    storage = {"data": [{"storage": "local-lvm", "type": "lvmthin", "total": 200, "used": 50, "avail": 150}]}
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        path = request.url.path
+        if path.endswith("/status"):
+            return httpx.Response(200, json=STATUS_PAYLOAD)
+        if path.endswith("/lxc"):
+            return httpx.Response(403, json={"data": None})
+        if state["busy"] and (path.endswith("/storage") or path.endswith("/qemu")):
+            raise httpx.ReadTimeout("storage query stuck behind I/O", request=request)
+        if path.endswith("/storage"):
+            return httpx.Response(200, json=storage)
+        if path.endswith("/qemu"):
+            return httpx.Response(200, json={"data": [{"vmid": 100, "status": "running"}]})
+        return httpx.Response(200, json={"data": [{"node": "pve01"}]})
+
+    collector = ProxmoxCollector(node, settings, transport=httpx.MockTransport(handle))
+    good = await collector.collect()
+    state["busy"] = True
+    busy = await collector.collect(previous=good)
+    await collector.aclose()
+
+    assert busy["status"] == STATUS_ONLINE
+    assert busy["vms"] == {"total": 1, "running": 1, "permitted": True}
+    assert busy["storage_available_bytes"] == 150
+    assert busy["containers"]["permitted"] is False
+
+
+@pytest.mark.asyncio
 async def test_error_messages_never_contain_the_token(make_settings):
     settings, node = _configured(make_settings)
 

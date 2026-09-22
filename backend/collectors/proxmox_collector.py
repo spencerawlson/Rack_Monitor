@@ -16,6 +16,7 @@ is scrubbed from any message that could reach a log or the browser.
 
 from __future__ import annotations
 
+import ssl
 import time
 from datetime import datetime, timezone
 from typing import Any
@@ -110,9 +111,18 @@ class ProxmoxCollector:
             if self._transport is not None:
                 kwargs["transport"] = self._transport
             else:
-                kwargs["verify"] = self.node.verify_option()
+                kwargs["verify"] = self._tls_verify()
             self._client = httpx.AsyncClient(**kwargs)
         return self._client
+
+    def _tls_verify(self) -> ssl.SSLContext | bool:
+        """httpx 0.28 deprecates a CA path for verify, so a path becomes a
+        context. Full verification stays on: chain, hostname or IP SAN, and
+        Python's strict X.509 checks, which the Proxmox cluster CA passes."""
+        option = self.node.verify_option()
+        if isinstance(option, str):
+            return ssl.create_default_context(cafile=option)
+        return option
 
     async def aclose(self) -> None:
         if self._client is not None and not self._client.is_closed:
@@ -150,7 +160,12 @@ class ProxmoxCollector:
     async def _resolve_node(self, client: httpx.AsyncClient) -> str:
         """Confirm the API node name, discovering it when the configured one
         does not exist. This allows a node to be renamed in Proxmox without a
-        source change."""
+        source change.
+
+        Only a positive identification is cached. A guess (the configured name
+        used because discovery failed) is retried on the next poll, so a node
+        that was down when the dashboard started is still identified later.
+        """
         if self._resolved_node:
             return self._resolved_node
 
@@ -159,7 +174,6 @@ class ProxmoxCollector:
             nodes = await self._fetch(client, "/nodes")
         except Exception:
             # Discovery is a convenience; the configured name is still tried.
-            self._resolved_node = configured
             return configured
 
         names = [
@@ -167,17 +181,42 @@ class ProxmoxCollector:
             for item in (nodes if isinstance(nodes, list) else [])
             if isinstance(item, dict) and item.get("node")
         ]
+        resolved: str | None = None
         if configured in names:
-            self._resolved_node = configured
+            resolved = configured
         else:
             match = next((n for n in names if n.lower() == configured.lower()), None)
             if match:
-                self._resolved_node = match
+                resolved = match
             elif len(names) == 1:
-                self._resolved_node = names[0]
-            else:
-                self._resolved_node = configured
-        return self._resolved_node
+                resolved = names[0]
+            elif len(names) > 1:
+                # In a cluster /nodes lists every member whichever host answers,
+                # so the node this host *is* comes from /cluster/status.
+                resolved = await self._local_cluster_node(client)
+        if resolved is None:
+            return configured
+        self._resolved_node = resolved
+        return resolved
+
+    async def _local_cluster_node(self, client: httpx.AsyncClient) -> str | None:
+        """Name of the cluster member that answered, from its local flag.
+
+        Used for identification only; no figures are read from the cluster
+        endpoints, so two nodes still cannot double-count anything."""
+        try:
+            members = await self._fetch(client, "/cluster/status")
+        except Exception:
+            return None
+        for item in members if isinstance(members, list) else []:
+            if (
+                isinstance(item, dict)
+                and item.get("type") == "node"
+                and item.get("local") in (1, True, "1")
+                and item.get("name")
+            ):
+                return str(item["name"])
+        return None
 
     # ---------------------------------------------------------------- results
 
@@ -266,7 +305,7 @@ class ProxmoxCollector:
                 raise ValueError("Node status was not an object")
 
             result = self._build(status, node_name)
-            result.update(await self._collect_optional(client, node_name))
+            result.update(await self._collect_optional(client, node_name, previous))
 
             self._failures = 0
             self._retry_after = 0.0
@@ -403,9 +442,22 @@ class ProxmoxCollector:
             },
         }
 
-    async def _collect_optional(self, client: httpx.AsyncClient, node_name: str) -> dict[str, Any]:
-        """Storage and guest inventory, each optional on token permissions."""
+    async def _collect_optional(
+        self, client: httpx.AsyncClient, node_name: str, previous: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
+        """Storage and guest inventory, each optional on token permissions.
+
+        A section that fails for a transient reason (a node busy enough that
+        its storage query times out) keeps the last value it read, so the card
+        does not flicker between figures and blanks. A permission refusal is
+        reported as such and never masked by an old value."""
         extra: dict[str, Any] = {}
+        before = previous if isinstance(previous, dict) and previous.get("last_success") else {}
+
+        def carried(*keys: str) -> dict[str, Any] | None:
+            if all(before.get(k) is not None for k in keys):
+                return {k: before[k] for k in keys}
+            return None
 
         try:
             storage = await self._fetch(client, f"/nodes/{node_name}/storage")
@@ -444,7 +496,9 @@ class ProxmoxCollector:
         except PermissionError:
             extra["storage"] = []
         except Exception:
-            extra["storage"] = []
+            extra.update(
+                carried("storage", "storage_total_bytes", "storage_available_bytes") or {"storage": []}
+            )
 
         for path, key in (("qemu", "vms"), ("lxc", "containers")):
             try:
@@ -458,6 +512,7 @@ class ProxmoxCollector:
             except PermissionError:
                 extra[key] = {"total": None, "running": None, "permitted": False}
             except Exception:
-                extra[key] = {"total": None, "running": None, "permitted": True}
+                old = carried(key)
+                extra[key] = old[key] if old else {"total": None, "running": None, "permitted": True}
 
         return extra
