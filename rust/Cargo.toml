@@ -43,6 +43,11 @@ windows-sys = { version = "0.61.2", features = [
     "Win32_System_Threading",
 ] }
 
+[build-dependencies]
+# Compiles app.rc into the binary. Uses the Windows SDK rc.exe under MSVC and
+# windres under the GNU toolchain.
+embed-resource = "3.0.11"
+
 [profile.release]
 strip = true
 lto = "thin"

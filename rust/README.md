@@ -287,6 +287,10 @@ cargo +stable-x86_64-pc-windows-msvc build --release
 The GNU toolchain also works, but on machines with MSYS2 the `mingw64`
 directory must come before `ucrt64` on `PATH`, or linking fails.
 
+A Windows build compiles `app.rc` into the executable so it carries the rack
+icon, which needs a resource compiler: `rc.exe` from the Windows SDK under
+MSVC, or `windres` under GNU. Both ship with their toolchain's usual install.
+
 **Linux / macOS:**
 
 ```bash
@@ -301,7 +305,7 @@ the build is pure Rust:
 cargo build --release --no-default-features
 ```
 
-Tests: `cargo test` (102 tests; Proxmox responses are served by a local mock
+Tests: `cargo test` (112 tests; Proxmox responses are served by a local mock
 server, so no node is needed).
 
 ---

@@ -29,6 +29,9 @@ use crate::service::Service;
 const INDEX_HTML: &str = include_str!("../web/index.html");
 const APP_JS: &str = include_str!("../web/app.js");
 const STYLES_CSS: &str = include_str!("../web/styles.css");
+/// Multi-size rack icon. A browser opening the dashboard in an app window
+/// uses it for the window and the taskbar button.
+const FAVICON_ICO: &[u8] = include_bytes!("../web/favicon.ico");
 
 pub const APP_ID: &str = "plh-rack-monitor";
 pub const SHUTDOWN_HEADER: &str = "x-plh-token";
@@ -54,6 +57,7 @@ pub fn router(state: Arc<AppState>) -> Router {
         .route("/", get(index))
         .route("/static/app.js", get(app_js))
         .route("/static/styles.css", get(styles_css))
+        .route("/favicon.ico", get(favicon))
         .route("/api/health", get(health))
         .route("/api/config", get(config))
         .route("/api/metrics", get(metrics))
@@ -100,6 +104,10 @@ async fn index() -> Response {
 
 async fn app_js() -> Response {
     asset("text/javascript; charset=utf-8", APP_JS)
+}
+
+async fn favicon() -> Response {
+    ([(header::CONTENT_TYPE, "image/x-icon")], FAVICON_ICO).into_response()
 }
 
 async fn styles_css() -> Response {
@@ -273,6 +281,28 @@ mod tests {
         assert!(raw_head.contains("content-security-policy"));
         assert!(raw_head.contains("x-content-type-options: nosniff"));
         assert!(raw_head.contains("cache-control: no-store"));
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn favicon_is_served_as_an_icon() {
+        let (addr, _) = start(0).await;
+        let (host, port) = addr.split_once(':').map(|(h, p)| (h.to_string(), p.parse::<u16>().unwrap())).unwrap();
+        let raw = tokio::task::spawn_blocking(move || {
+            use std::io::{Read, Write};
+            let mut s = std::net::TcpStream::connect((host.as_str(), port)).unwrap();
+            write!(s, "GET /favicon.ico HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nConnection: close\r\n\r\n").unwrap();
+            let mut buf = Vec::new();
+            s.read_to_end(&mut buf).unwrap();
+            buf
+        })
+        .await
+        .unwrap();
+        let end = raw.windows(4).position(|w| w == b"\r\n\r\n").expect("headers end");
+        let head = String::from_utf8_lossy(&raw[..end]).to_lowercase();
+        assert!(head.starts_with("http/1.1 200"));
+        assert!(head.contains("content-type: image/x-icon"));
+        // ICONDIR: reserved = 0, then type = 1 for an icon.
+        assert_eq!(&raw[end + 4..end + 8], &[0, 0, 1, 0]);
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
